@@ -1,0 +1,27 @@
+# --- Secrets: never commit anything containing keys ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
+client_secret*.json
+service_account*.json
+service-account*.json
+*-service-account*.json
+gcp-*.json
+google-credentials*.json
+
+# --- Legacy local output (now written to Google Sheets) ---
+reports/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# NOTE: seen.db is deliberately NOT ignored. In the GitHub Actions setup it is
+# the persistence layer for VIN dedupe history and is committed back after
+# every run — runners are wiped between runs. Do not add it here.

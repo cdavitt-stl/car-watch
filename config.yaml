@@ -1,0 +1,13 @@
+# Car Watch search parameters
+zip: "63125"
+radius_miles: 30
+max_price: 24000
+min_price_flag: 21000   # cars under this still show, just flagged as unusually cheap
+max_miles: 120000        # skip anything above this — adjust as you like
+
+vehicles:
+  - { make: "Honda",  model: "Civic" }
+  - { make: "Toyota", model: "Corolla" }
+
+# Output goes to the Google Sheet identified by the SHEET_ID env var.
+# No secrets belong in this file.

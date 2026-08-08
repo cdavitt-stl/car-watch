@@ -1,0 +1,57 @@
+name: car-watch
+
+on:
+  schedule:
+    - cron: "0 13 * * *"    # 13:00 UTC daily
+    - cron: "30 21 * * *"   # 21:30 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# seen.db is committed back to the repo, so never let two runs race.
+concurrency:
+  group: car-watch
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests pyyaml gspread
+
+      - name: Run car watch
+        env:
+          MARKETCHECK_API_KEY: ${{ secrets.MARKETCHECK_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+        run: python car_watch.py
+
+      - name: Commit seen.db
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add seen.db
+          if git diff --staged --quiet; then
+            echo "seen.db unchanged — nothing to commit."
+            exit 0
+          fi
+          git commit -m "car-watch: update seen.db [skip ci]"
+          # Rebase onto anything that landed while this run was working.
+          for attempt in 1 2 3; do
+            if git push; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected — rebasing and retrying."
+            git pull --rebase --autostash
+          done
+          echo "Could not push seen.db after 3 attempts." >&2
+          exit 1
