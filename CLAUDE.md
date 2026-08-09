@@ -27,7 +27,7 @@ with a 403.
 ### Google Sheet layout
 - **`Current`** — cleared and fully rewritten each run, sorted by deal score
   (highest first). Columns: `Score | Year | Model | Trim | Price | Miles |
-  Days Listed | Dealer | Distance | Status | Link`.
+  Days Listed | Dealer | Distance | Status | Link | Flags`.
 - **`Log`** — append-only, one row per run:
   `Timestamp (UTC) | Listings | New | Price Drops`.
 
@@ -39,6 +39,23 @@ Both tabs are created automatically if missing. Numbers are written as numbers
 are additionally marked `CHEAP — CHECK HISTORY`. A car can be both, in which
 case the marks are joined — e.g. `NEW · CHEAP — CHECK HISTORY` — so a cheap car
 never hides the fact that it's also brand new to the list.
+
+### Dealer column
+Dealer names are matched case-insensitively as substrings against
+`preferred_dealers` in config.yaml — `"Suntrup"` matches
+`"Suntrup Ford Westport"`. Matching rows get a `★ ` prefix on the cell.
+
+### Flags column
+Listings are matched against the `watchlist` in config.yaml (make, model,
+year range, optional `trim_keywords`, `severity`, `reason`) and annotated
+`AVOID: reason` or `CAUTION: reason`. Flagging is advisory only — flagged cars
+are never removed and the sort is unaffected.
+
+Omitting `trim_keywords` matches all trims. A listing with a missing trim or an
+unparseable year fails any rule that depends on that field rather than raising,
+so we never flag a car we can't actually identify. When several rules hit at
+once (a 2016 Civic EX-T hits both Civic rules), the worst severity names the
+cell and the reasons are joined with `; `.
 
 ### Scheduling and persistence
 Runs at 13:00 and 21:30 UTC daily, plus `workflow_dispatch` for manual runs.

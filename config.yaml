@@ -22,5 +22,31 @@ preferred_dealers:
   - "Suntrup"
   - "EchoPark"
 
+# Known-problem model years. Matches are flagged in the Flags column, never
+# removed from results. trim_keywords is optional — omit it to match all trims.
+# Trim keywords are matched case-insensitively as substrings.
+watchlist:
+  - make: "Honda"
+    model: "Civic"
+    year_min: 2016
+    year_max: 2018
+    trim_keywords: ["EX-T", "EX-L", "Touring", "1.5T"]
+    severity: "avoid"
+    reason: "1.5T oil dilution issue"
+
+  - make: "Honda"
+    model: "Civic"
+    year_min: 2016
+    year_max: 2016
+    severity: "avoid"
+    reason: "first model year + A/C condenser failures"
+
+  - make: "Toyota"
+    model: "Corolla"
+    year_min: 2019
+    year_max: 2020
+    severity: "caution"
+    reason: "first year of redesign"
+
 # Output goes to the Google Sheet identified by the SHEET_ID env var.
 # No secrets belong in this file.

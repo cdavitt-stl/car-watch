@@ -42,7 +42,8 @@ MAX_ROWS_PER_VEHICLE = 200
 CURRENT_TAB = "Current"
 LOG_TAB = "Log"
 CURRENT_HEADERS = ["Score", "Year", "Model", "Trim", "Price", "Miles",
-                   "Days Listed", "Dealer", "Distance", "Status", "Link"]
+                   "Days Listed", "Dealer", "Distance", "Status", "Link",
+                   "Flags"]
 LOG_HEADERS = ["Timestamp (UTC)", "Listings", "New", "Price Drops"]
 
 CHEAP = "CHEAP — CHECK HISTORY"
@@ -55,6 +56,44 @@ PREFERRED_DEALERS = [
     for d in (CONFIG.get("preferred_dealers") or [])
     if str(d).strip()
 ]
+
+# Watchlist severities, worst first. A listing can hit several rules at once
+# (a 2016 Civic EX-T hits both Civic rules), so the worst one names the cell.
+SEVERITY_RANK = {"avoid": 2, "caution": 1}
+
+
+def _as_year(value):
+    """build.year arrives as int, str, or missing. Return int or None."""
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _load_watchlist():
+    """Normalize config watchlist entries once at import."""
+    rules = []
+    for raw in (CONFIG.get("watchlist") or []):
+        if not isinstance(raw, dict):
+            continue
+        rules.append({
+            "make": str(raw.get("make") or "").strip().lower(),
+            "model": str(raw.get("model") or "").strip().lower(),
+            "year_min": _as_year(raw.get("year_min")),
+            "year_max": _as_year(raw.get("year_max")),
+            # Blank keywords are dropped: "" is a substring of everything.
+            "trim_keywords": [
+                str(k).strip().lower()
+                for k in (raw.get("trim_keywords") or [])
+                if str(k).strip()
+            ],
+            "severity": str(raw.get("severity") or "caution").strip().lower(),
+            "reason": str(raw.get("reason") or "").strip(),
+        })
+    return rules
+
+
+WATCHLIST = _load_watchlist()
 
 
 def init_db():
@@ -197,6 +236,55 @@ def apply_status(listings):
         x["status"] = " · ".join(parts) if parts else "—"
 
 
+def match_watchlist(listing):
+    """Flags cell for one listing: 'AVOID: reason', 'CAUTION: reason', or ''.
+
+    Flagging never removes a car and never affects the sort — it only
+    annotates. A listing with no trim, or an unparseable year, simply fails
+    to match any rule that depends on those rather than raising.
+    """
+    make = str(listing.get("make") or "").strip().lower()
+    model = str(listing.get("model") or "").strip().lower()
+    trim = str(listing.get("trim") or "").strip().lower()
+    year = _as_year(listing.get("year"))
+
+    hits = []
+    for rule in WATCHLIST:
+        if rule["make"] and rule["make"] != make:
+            continue
+        if rule["model"] and rule["model"] != model:
+            continue
+        if rule["year_min"] is not None or rule["year_max"] is not None:
+            if year is None:
+                continue  # unknown year can't be range-matched
+            if rule["year_min"] is not None and year < rule["year_min"]:
+                continue
+            if rule["year_max"] is not None and year > rule["year_max"]:
+                continue
+        if rule["trim_keywords"]:
+            # A missing trim can't confirm a trim-specific rule, so skip it
+            # rather than flagging a car we can't actually identify.
+            if not any(k in trim for k in rule["trim_keywords"]):
+                continue
+        hits.append(rule)
+
+    if not hits:
+        return ""
+    worst = max(SEVERITY_RANK.get(h["severity"], 0) for h in hits)
+    label = "AVOID" if worst == SEVERITY_RANK["avoid"] else "CAUTION"
+    reasons = [h["reason"] for h in hits
+               if SEVERITY_RANK.get(h["severity"], 0) == worst and h["reason"]]
+    if not reasons:
+        return label
+    # dict.fromkeys dedupes while preserving config order.
+    return f"{label}: {'; '.join(dict.fromkeys(reasons))}"
+
+
+def apply_flags(listings):
+    for x in listings:
+        x["flags"] = match_watchlist(x)
+
+
 def is_preferred(name):
     """Case-insensitive substring match against config's preferred_dealers.
 
@@ -251,6 +339,7 @@ def write_current(sheet, listings):
             x["deal_score"], x["year"], x["model"], x["trim"],
             x["price"], x["miles"], x["days_listed"],
             dealer, x["distance"], x["status"], x["url"],
+            x.get("flags", ""),
         ])
     ws.clear()
     ws.update(range_name="A1", values=rows, value_input_option="USER_ENTERED")
@@ -270,6 +359,7 @@ def main():
     listings = score_deals(fetch_listings())
     new, drops = diff_and_store(con, listings)
     apply_status(listings)
+    apply_flags(listings)
 
     sheet = open_sheet()
     write_current(sheet, listings)
