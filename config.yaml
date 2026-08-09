@@ -9,5 +9,18 @@ vehicles:
   - { make: "Honda",  model: "Civic" }
   - { make: "Toyota", model: "Corolla" }
 
+# Dealer names matched case-insensitively as substrings, so "Suntrup" also
+# matches "Suntrup Ford Westport". Matches get a ★ on the Dealer cell.
+preferred_dealers:
+  - "Weiss Toyota"
+  - "Dave Sinclair"
+  - "Ackerman Toyota"
+  - "Seeger Toyota"
+  - "Lou Fusz"
+  - "Bommarito"
+  - "Frank Leta"
+  - "Suntrup"
+  - "EchoPark"
+
 # Output goes to the Google Sheet identified by the SHEET_ID env var.
 # No secrets belong in this file.

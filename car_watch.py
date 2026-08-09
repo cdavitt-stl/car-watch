@@ -46,6 +46,15 @@ CURRENT_HEADERS = ["Score", "Year", "Model", "Trim", "Price", "Miles",
 LOG_HEADERS = ["Timestamp (UTC)", "Listings", "New", "Price Drops"]
 
 CHEAP = "CHEAP — CHECK HISTORY"
+STAR = "★ "
+
+# Lowercased once at import. Blank entries are dropped — "" is a substring of
+# every string, so a stray empty list item would star every row.
+PREFERRED_DEALERS = [
+    str(d).strip().lower()
+    for d in (CONFIG.get("preferred_dealers") or [])
+    if str(d).strip()
+]
 
 
 def init_db():
@@ -72,8 +81,10 @@ def _normalize(item):
         "price": float(item.get("price") or 0),
         "miles": float(item.get("miles") or 0),
         "days_listed": item.get("dom", ""),
-        "seller": dealer.get("name", ""),
-        "city": dealer.get("city", ""),
+        # `or ""` not `get(..., "")`: an explicit JSON null would sail past a
+        # default and land as None, which breaks the dealer match downstream.
+        "seller": dealer.get("name") or "",
+        "city": dealer.get("city") or "",
         "distance": item.get("dist", ""),
         "url": item.get("vdp_url", ""),
     }
@@ -186,6 +197,18 @@ def apply_status(listings):
         x["status"] = " · ".join(parts) if parts else "—"
 
 
+def is_preferred(name):
+    """Case-insensitive substring match against config's preferred_dealers.
+
+    Tolerates a missing, empty, or non-string dealer name — the feed does
+    occasionally omit dealer.name, and that must not take down a run.
+    """
+    if not name or not isinstance(name, str):
+        return False
+    lowered = name.lower()
+    return any(p in lowered for p in PREFERRED_DEALERS)
+
+
 def open_sheet():
     raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
     if not raw:
@@ -222,6 +245,8 @@ def write_current(sheet, listings):
     rows = [CURRENT_HEADERS]
     for x in listings:
         dealer = f"{x['seller']} ({x['city']})" if x["city"] else x["seller"]
+        if is_preferred(x["seller"]):
+            dealer = STAR + dealer
         rows.append([
             x["deal_score"], x["year"], x["model"], x["trim"],
             x["price"], x["miles"], x["days_listed"],
